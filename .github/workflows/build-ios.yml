@@ -1,0 +1,57 @@
+# Builds an UNSIGNED .ipa on a free GitHub macOS runner.
+# Sign + install it from Windows with Sideloadly (see README.md).
+name: Build iOS (unsigned)
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      # Expo SDK 57 needs Xcode 26.4+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Generates the ios/ folder and runs pod install
+      - run: npx expo prebuild --platform ios --clean
+        env:
+          CI: 1
+
+      - name: Build app (no code signing)
+        run: |
+          WORKSPACE=$(ls -d ios/*.xcworkspace | head -1)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package .ipa
+        run: |
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/*.app Payload/
+          zip -qr ClickMe.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClickMe-ipa
+          path: ClickMe.ipa
