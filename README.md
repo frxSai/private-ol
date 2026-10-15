@@ -1,17 +1,20 @@
 # ClickMe
 
-A one-screen iOS app with an ON/OFF button for the fake-location session on the PC.
-It calls `toggle_server.py` (in the `geo` folder) over Tailscale at `http://100.91.102.69:8765`
-(change `SERVER` in `App.tsx` if the PC's Tailscale IP changes).
+Moon Walk: a one-screen iOS app with an ON/OFF button and a radius setting for the
+fake-location session on the PC. It calls `toggle_server.py` (in the `geo` folder) over Tailscale,
+by the PC's MagicDNS name `main-node.tailfe09af.ts.net` (falling back to `100.91.102.69`), so a
+changed Tailscale IP doesn't break it. The addresses are `SERVERS` in `App.tsx`.
 Built with Expo (React Native) on Windows. No Mac and no paid Apple account needed.
 
-On the PC, start the server (it asks for Administrator):
+On the PC, start the server (it asks for Administrator). `--host` is the iPhone's Tailscale name,
+which the server looks up in Tailscale each time:
 
 ```bash
-python toggle_server.py --host 100.99.251.106
+python toggle_server.py --host iphone173
 ```
 
-Then tap the button in the app: ON starts the session, OFF restores the real GPS and stops it.
+Then in the app pick the radius and tap ON. OFF restores the real GPS and stops the session.
+The radius can only be changed while it's OFF.
 
 ## 1. Quick test with Expo Go (optional, instant)
 
