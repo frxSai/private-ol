@@ -1,12 +1,19 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-// toggle_server.py on the PC, reached over Tailscale. The MagicDNS name keeps working if the
-// PC's Tailscale IP changes; the IP is a fallback in case Tailscale DNS is off on the iPhone.
-const SERVERS = ['http://main-node.tailfe09af.ts.net:8765', 'http://100.91.102.69:8765'];
-const UNREACHABLE = "Can't reach the PC (main-node). Is toggle_server.py running and Tailscale on?";
+// toggle_server.py, reached over Tailscale: the Linux server (hyperinstance) first, then the PC
+// (main-node). MagicDNS names keep working if a Tailscale IP changes; the IPs are fallbacks in
+// case Tailscale DNS is off on the iPhone. The last address that answered is tried first.
+const SERVERS = [
+  'http://hyperinstance.tailfe09af.ts.net:8765',
+  'http://100.93.31.113:8765',
+  'http://main-node.tailfe09af.ts.net:8765',
+  'http://100.91.102.69:8765',
+];
+const UNREACHABLE =
+  "Can't reach the Moon Walk server (hyperinstance or main-node). Is toggle_server.py running and Tailscale on?";
 
 // Radius choices for the -/+ buttons, in meters.
 const RADII = [5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
@@ -17,7 +24,7 @@ type Status = {
   location: [number, number] | null;
   note: string;
   radius: number;
-  // What the PC's Tailscale sees about this iPhone.
+  // What the server's Tailscale sees about this iPhone.
   tailscale: { pc: string; phone_online: boolean; phone_ip: string | null; path: string };
 };
 
@@ -36,7 +43,7 @@ async function call(path: string, method: 'GET' | 'POST', timeoutMs: number, bod
         headers: body ? { 'Content-Type': 'application/json' } : undefined,
         body: body ? JSON.stringify(body) : undefined,
       });
-      if (!res.ok) throw new Error(`PC answered ${res.status}`);
+      if (!res.ok) throw new Error(`Server answered ${res.status}`);
       working = index;
       return (await res.json()) as Status;
     } catch (e) {
@@ -58,16 +65,22 @@ export default function App() {
   const [status, setStatus] = useState<Status | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [radius, setRadius] = useState<number | null>(null); // null until the PC tells us its last radius
+  const [radius, setRadius] = useState<number | null>(null); // null until the server tells us its last radius
+
+  const polling = useRef(false); // trying every address can outlast the 2 s poll, so don't overlap
 
   const refresh = useCallback(async () => {
+    if (polling.current) return;
+    polling.current = true;
     try {
-      const s = await call('/status', 'GET', 5000);
+      const s = await call('/status', 'GET', 4000);
       setStatus(s);
       setRadius((r) => r ?? s.radius);
       setError(null);
     } catch {
       setError(UNREACHABLE);
+    } finally {
+      polling.current = false;
     }
   }, []);
 
@@ -82,7 +95,7 @@ export default function App() {
     setBusy(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      // Turning off waits for the PC to restore real GPS, so allow longer.
+      // Turning off waits for the server to restore real GPS, so allow longer.
       const s = status.on
         ? await call('/off', 'POST', 20000)
         : await call('/on', 'POST', 20000, radius ? { radius } : undefined);
@@ -148,7 +161,7 @@ export default function App() {
         </Pressable>
       </View>
 
-      <Text style={styles.note}>{status?.note ?? 'Connecting to PC...'}</Text>
+      <Text style={styles.note}>{status?.note ?? 'Connecting to server...'}</Text>
       {status?.location && (
         <Text style={styles.location}>
           {status.location[0].toFixed(6)}, {status.location[1].toFixed(6)}
@@ -167,9 +180,9 @@ export default function App() {
           <Text style={styles.tailscaleTitle}>Tailscale</Text>
           <Text style={styles.tailscaleDetail}>
             {error
-              ? 'PC not reachable over Tailscale'
+              ? 'Server not reachable over Tailscale'
               : status
-                ? `PC ${status.tailscale.pc} · iPhone ${
+                ? `Server ${status.tailscale.pc} · iPhone ${
                     status.tailscale.phone_online ? 'online' : 'offline'
                   } · ${status.tailscale.path}`
                 : 'Checking...'}
