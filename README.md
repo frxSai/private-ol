@@ -1,7 +1,17 @@
 # ClickMe
 
-A one-screen iOS demo: tap the button, the counter goes up, and the phone gives a haptic tap.
+A one-screen iOS app with an ON/OFF button for the fake-location session on the PC.
+It calls `toggle_server.py` (in the `geo` folder) over Tailscale at `http://100.91.102.69:8765`
+(change `SERVER` in `App.tsx` if the PC's Tailscale IP changes).
 Built with Expo (React Native) on Windows. No Mac and no paid Apple account needed.
+
+On the PC, start the server (it asks for Administrator):
+
+```bash
+python toggle_server.py --host 100.99.251.106
+```
+
+Then tap the button in the app: ON starts the session, OFF restores the real GPS and stops it.
 
 ## 1. Quick test with Expo Go (optional, instant)
 
